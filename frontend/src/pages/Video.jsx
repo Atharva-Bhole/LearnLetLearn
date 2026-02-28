@@ -12,6 +12,8 @@ const Video = () => {
   // UI States for better UX
   const [isJoined, setIsJoined] = useState(false);
   const [isCalling, setIsCalling] = useState(false);
+  const [roomType, setRoomType] = useState('public');
+  const [roomPassword, setRoomPassword] = useState('');
   
   const localVideo = useRef(null);
   const remoteVideo = useRef(null);
@@ -68,33 +70,27 @@ const Video = () => {
 
   const joinRoom = async () => {
     if (!roomId.trim()) return;
-    
+    if (roomType === 'private' && !roomPassword) return;
     try {
       setStatus('Accessing camera and microphone...');
       const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       setStream(mediaStream);
       localVideo.current.srcObject = mediaStream;
-      
-      socket.emit('join_video_room', { roomId, userId });
+      socket.emit('join_video_room', { roomId, userId, roomType, roomPassword });
       setIsJoined(true);
-      setStatus('Joined room. Ready to call.');
-      
+      setStatus(`Joined ${roomType} room. Ready to call.`);
       const pc = new RTCPeerConnection({
-        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] // Added public STUN server for better connectivity
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
       });
-      
       mediaStream.getTracks().forEach(track => pc.addTrack(track, mediaStream));
-      
       pc.ontrack = event => {
         remoteVideo.current.srcObject = event.streams[0];
       };
-      
       pc.onicecandidate = event => {
         if (event.candidate) {
           socket.emit('ice_candidate', { roomId, candidate: event.candidate, senderId: userId });
         }
       };
-      
       setPeerConnection(pc);
     } catch (err) {
       setStatus('Error accessing camera/microphone. Please check permissions.');
@@ -203,15 +199,36 @@ const Video = () => {
               value={roomId}
               onChange={e => setRoomId(e.target.value)}
             />
+            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <select
+                disabled={isJoined}
+                className="p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-100 disabled:text-gray-500 transition-colors shadow-sm"
+                value={roomType}
+                onChange={e => setRoomType(e.target.value)}
+              >
+                <option value="public">Public</option>
+                <option value="private">Private</option>
+              </select>
+              {roomType === 'private' && (
+                <input
+                  type="password"
+                  placeholder="Room Password"
+                  disabled={isJoined}
+                  className="p-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white disabled:bg-gray-100 disabled:text-gray-500 transition-colors shadow-sm"
+                  value={roomPassword}
+                  onChange={e => setRoomPassword(e.target.value)}
+                />
+              )}
+            </div>
             
             <div className="flex w-full sm:w-auto gap-3">
               {!isJoined ? (
                 <button 
                   onClick={joinRoom}
-                  disabled={!roomId.trim()}
+                  disabled={!roomId.trim() || (roomType === 'private' && !roomPassword)}
                   className="w-full sm:w-auto bg-gray-800 hover:bg-gray-900 text-white font-medium px-6 py-3 rounded-xl transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                 >
-                  Join Room
+                  Join {roomType === 'private' ? 'Private' : 'Public'} Room
                 </button>
               ) : (
                 <button 
