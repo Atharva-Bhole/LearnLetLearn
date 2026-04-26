@@ -39,3 +39,20 @@ exports.getProfile = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err });
   }
 };
+
+exports.updateProfile = async (req, res) => {
+  try {
+    const { name, skillsKnown, skillsToLearn } = req.body;
+    const user = await User.findById(req.user.userId).select('-password');
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    if (name) user.name = name;
+    if (skillsKnown) user.skillsKnown = skillsKnown;
+    if (skillsToLearn) user.skillsToLearn = skillsToLearn;
+
+    await user.save();
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err });
+  }
+};

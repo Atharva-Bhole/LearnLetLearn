@@ -4,8 +4,6 @@ const http = require('http');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const { Server } = require('socket.io');
-// const admin = require('firebase-admin');
-
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -15,7 +13,6 @@ const io = new Server(server, {
   }
 });
 
-// Middleware
 app.use(cors({
   origin: [
     'http://localhost:5173',
@@ -24,18 +21,12 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+const path = require('path');
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// Import and use routes
 const setupRoutes = require('./routes');
 setupRoutes(app);
 
-// Firebase Admin setup
-// const serviceAccount = require('../config/firebaseServiceAccount.json');
-// admin.initializeApp({
-//   credential: admin.credential.cert(serviceAccount)
-// });
-
-// MongoDB connection
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true
@@ -45,13 +36,11 @@ mongoose.connect(process.env.MONGO_URI, {
   console.error('MongoDB connection error:', err);
 });
 
-// Socket.io chat handler
 const chatSocketHandler = require('./controllers/chatSocket');
 const videoSocketHandler = require('./controllers/videoSocket');
 chatSocketHandler(io);
 videoSocketHandler(io);
 
-// Basic route
 app.get('/', (req, res) => {
   res.send('L2 Platform Backend Running');
 });

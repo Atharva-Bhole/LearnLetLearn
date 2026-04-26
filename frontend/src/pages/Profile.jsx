@@ -1,11 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { LogOut, User as UserIcon, Mail, Briefcase, Award, Sparkles, Edit3, Loader2, Save, X } from 'lucide-react';
 
 const Profile = () => {
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  const [editForm, setEditForm] = useState({
+    name: '',
+    skillsKnown: '',
+    skillsToLearn: ''
+  });
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -28,133 +38,241 @@ const Profile = () => {
     fetchProfile();
   }, []);
 
+  const handleEditToggle = () => {
+    if (!isEditing && profile) {
+      setEditForm({
+        name: profile.name || '',
+        skillsKnown: profile.skillsKnown?.join(', ') || '',
+        skillsToLearn: profile.skillsToLearn?.join(', ') || ''
+      });
+    }
+    setIsEditing(!isEditing);
+  };
+
+  const handleSave = async () => {
+    try {
+      setIsSaving(true);
+      const token = localStorage.getItem('token');
+      
+      const payload = {
+        name: editForm.name,
+        skillsKnown: editForm.skillsKnown.split(',').map(s => s.trim()).filter(s => s),
+        skillsToLearn: editForm.skillsToLearn.split(',').map(s => s.trim()).filter(s => s)
+      };
+
+      const res = await axios.put('http://localhost:5000/api/auth/profile', payload, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setProfile(res.data);
+      setIsEditing(false);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update profile.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     navigate('/login');
   };
 
-  // Helper function for avatar initials
   const getInitials = (name) => {
     if (!name) return '?';
     return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl w-full">
+    <div className="min-h-[calc(100vh-4rem)] bg-surface-50 flex justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl w-full animate-fade-in">
         
         {/* Header */}
-        <div className="mb-8 flex justify-between items-center">
-          <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">My Profile</h2>
+        <div className="mb-8 flex flex-col sm:flex-row sm:justify-between sm:items-end space-y-4 sm:space-y-0">
+          <div>
+            <h2 className="text-3xl font-display font-extrabold text-slate-900 tracking-tight">My Profile</h2>
+            <p className="text-slate-500 mt-1">Manage your personal information and skills</p>
+          </div>
           {profile && (
             <button 
               onClick={handleLogout}
-              className="text-sm font-medium text-red-600 hover:text-red-800 transition bg-red-50 hover:bg-red-100 px-4 py-2 rounded-lg"
+              className="inline-flex items-center space-x-2 text-sm font-medium text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-4 py-2.5 rounded-xl transition-colors"
             >
-              Sign Out
+              <LogOut size={16} />
+              <span>Sign Out</span>
             </button>
           )}
         </div>
 
         {/* Error State */}
         {error && (
-          <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm border border-red-100 flex items-center mb-6">
-            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
+          <div className="bg-rose-50 text-rose-600 p-4 rounded-xl text-sm border border-rose-100 flex items-center mb-6">
             {error}
           </div>
         )}
 
         {/* Loading State */}
         {isLoading ? (
-          <div className="flex justify-center items-center h-64 bg-white rounded-2xl shadow-sm border border-gray-200">
-            <svg className="animate-spin h-10 w-10 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
+          <div className="flex justify-center items-center h-64 bg-white rounded-2xl shadow-sm border border-slate-200">
+            <Loader2 className="animate-spin h-8 w-8 text-blue-600" />
           </div>
         ) : profile ? (
           
           /* Profile Card */
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
             
             {/* Cover Banner */}
-            <div className="h-32 bg-gradient-to-r from-blue-600 to-indigo-700"></div>
+            <div className="h-40 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 relative">
+              <div className="absolute inset-0 bg-white/10 mix-blend-overlay">
+                <svg className="absolute w-full h-full" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <pattern id="grid-profile" width="40" height="40" patternUnits="userSpaceOnUse">
+                      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth="1"/>
+                    </pattern>
+                  </defs>
+                  <rect width="100%" height="100%" fill="url(#grid-profile)" />
+                </svg>
+              </div>
+            </div>
             
-            <div className="px-8 pb-8">
+            <div className="px-8 pb-8 relative">
               {/* Avatar & Basic Info */}
-              <div className="relative flex justify-between items-end -mt-12 mb-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end -mt-16 mb-8 space-y-4 sm:space-y-0">
                 <div className="flex items-end space-x-5">
-                  <div className="h-24 w-24 rounded-full bg-white p-1 shadow-md">
-                    <div className="h-full w-full rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center text-3xl font-bold text-gray-700 border border-gray-100">
-                      {getInitials(profile.name)}
+                  <div className="relative">
+                    <div className="h-32 w-32 rounded-2xl bg-white p-1.5 shadow-md">
+                      <div className="h-full w-full rounded-xl bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center text-4xl font-bold text-blue-600 border border-blue-50">
+                        {getInitials(profile.name)}
+                      </div>
                     </div>
+                    <div className="absolute bottom-2 right-2 w-4 h-4 bg-green-500 border-2 border-white rounded-full shadow-sm"></div>
                   </div>
+                  
                   <div className="pb-2">
-                    <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                      {profile.name}
-                      {profile.role && (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 uppercase tracking-wide">
-                          {profile.role}
-                        </span>
-                      )}
-                    </h1>
-                    <p className="text-sm font-medium text-gray-500">{profile.email}</p>
+                    {isEditing ? (
+                      <input 
+                        type="text"
+                        value={editForm.name}
+                        onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                        className="text-2xl font-bold text-slate-900 border-b-2 border-blue-500 focus:outline-none bg-slate-50 px-2 py-1 rounded"
+                      />
+                    ) : (
+                      <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-3">
+                        {profile.name}
+                      </h1>
+                    )}
+                    <div className="flex items-center text-slate-500 mt-2 space-x-4 text-sm">
+                      <span className="flex items-center"><Mail size={14} className="mr-1" /> {profile.email}</span>
+                      <span className="flex items-center"><UserIcon size={14} className="mr-1" /> Member</span>
+                    </div>
                   </div>
                 </div>
                 
-                {/* Optional: Add an "Edit Profile" button here later */}
-                <button className="mb-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition">
-                  Edit Profile
-                </button>
+                <div className="flex space-x-2">
+                  {isEditing ? (
+                    <>
+                      <button 
+                        onClick={handleEditToggle}
+                        className="flex items-center space-x-1 bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
+                      >
+                        <X size={16} />
+                        <span>Cancel</span>
+                      </button>
+                      <button 
+                        onClick={handleSave}
+                        disabled={isSaving}
+                        className="flex items-center space-x-1 bg-blue-600 border border-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-xl text-sm font-semibold shadow-sm transition-all disabled:opacity-50"
+                      >
+                        {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                        <span>Save</span>
+                      </button>
+                    </>
+                  ) : (
+                    <button 
+                      onClick={handleEditToggle}
+                      className="flex items-center space-x-2 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-5 py-2.5 rounded-xl text-sm font-semibold shadow-sm transition-all hover:shadow"
+                    >
+                      <Edit3 size={16} />
+                      <span>Edit Profile</span>
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <hr className="border-gray-100 mb-8" />
+              <div className="w-full h-px bg-slate-100 mb-8"></div>
 
               {/* Skills Section */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
                 {/* Skills Known */}
-                <div className="bg-blue-50/50 rounded-xl p-6 border border-blue-100/50">
-                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center">
-                    <svg className="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Skills I Know
+                <div className="bg-blue-50/50 rounded-2xl p-6 border border-blue-100">
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 flex items-center">
+                    <div className="p-1.5 bg-blue-100 text-blue-600 rounded-lg mr-2">
+                      <Award size={18} />
+                    </div>
+                    Skills I Can Teach
                   </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {profile.skillsKnown && profile.skillsKnown.length > 0 ? (
-                      profile.skillsKnown.map((skill, idx) => (
-                        <span key={idx} className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-blue-100 text-blue-800 shadow-sm">
-                          {skill}
-                        </span>
-                      ))
-                    ) : (
-                      <p className="text-sm text-gray-500 italic">No skills added yet.</p>
-                    )}
-                  </div>
+                  
+                  {isEditing ? (
+                    <div>
+                      <input 
+                        type="text"
+                        value={editForm.skillsKnown}
+                        onChange={(e) => setEditForm({...editForm, skillsKnown: e.target.value})}
+                        placeholder="React, Node.js, Python (comma separated)"
+                        className="w-full px-4 py-2 text-sm border border-blue-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                      <p className="text-xs text-blue-500 mt-2">Separate skills with commas</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {profile.skillsKnown && profile.skillsKnown.length > 0 ? (
+                        profile.skillsKnown.map((skill, idx) => (
+                          <span key={idx} className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-white text-blue-700 border border-blue-200 shadow-sm">
+                            {skill}
+                          </span>
+                        ))
+                      ) : (
+                        <p className="text-sm text-slate-500 italic">No skills added yet.</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Skills To Learn */}
-                <div className="bg-purple-50/50 rounded-xl p-6 border border-purple-100/50">
-                  <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center">
-                    <svg className="w-5 h-5 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
+                <div className="bg-purple-50/50 rounded-2xl p-6 border border-purple-100">
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-4 flex items-center">
+                    <div className="p-1.5 bg-purple-100 text-purple-600 rounded-lg mr-2">
+                      <Sparkles size={18} />
+                    </div>
                     Skills I Want to Learn
                   </h3>
-                  <div className="flex flex-wrap gap-2">
-                    {profile.skillsToLearn && profile.skillsToLearn.length > 0 ? (
-                      profile.skillsToLearn.map((skill, idx) => (
-                        <span key={idx} className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-purple-100 text-purple-800 shadow-sm">
-                          {skill}
-                        </span>
-                      ))
-                    ) : (
-                      <p className="text-sm text-gray-500 italic">No skills requested yet.</p>
-                    )}
-                  </div>
+                  
+                  {isEditing ? (
+                    <div>
+                      <input 
+                        type="text"
+                        value={editForm.skillsToLearn}
+                        onChange={(e) => setEditForm({...editForm, skillsToLearn: e.target.value})}
+                        placeholder="Machine Learning, UI/UX (comma separated)"
+                        className="w-full px-4 py-2 text-sm border border-purple-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                      <p className="text-xs text-purple-500 mt-2">Separate skills with commas</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {profile.skillsToLearn && profile.skillsToLearn.length > 0 ? (
+                        profile.skillsToLearn.map((skill, idx) => (
+                          <span key={idx} className="inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-medium bg-white text-purple-700 border border-purple-200 shadow-sm">
+                            {skill}
+                          </span>
+                        ))
+                      ) : (
+                        <p className="text-sm text-slate-500 italic">No skills requested yet.</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
               </div>

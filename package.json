@@ -19,9 +19,3 @@
     "nodemon": "^3.0.1"
   }
 }
-
-{
-  "dependencies": {
-    "@vitejs/plugin-react": "^5.1.4"
-  }
-}

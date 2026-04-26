@@ -1,146 +1,206 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
+import { Users, Loader2, Sparkles, MessageCircle, AlertCircle, ArrowRight, Search, Globe } from 'lucide-react';
 
 const Match = () => {
   const [matches, setMatches] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState('matches'); // 'matches' | 'all'
 
   useEffect(() => {
-    const fetchMatches = async () => {
+    const fetchData = async () => {
       try {
         setIsLoading(true);
-        // Note: Make sure your API expects withCredentials, or add the Bearer token here if needed
-        const res = await axios.get('http://localhost:5000/api/match/', {
-          withCredentials: true
-        });
-        setMatches(res.data.matches || []);
+        const token = localStorage.getItem('token');
+        const [matchRes, allUsersRes] = await Promise.all([
+          axios.get('http://localhost:5000/api/match/', { withCredentials: true }),
+          axios.get('http://localhost:5000/api/user/search?q=', { headers: { Authorization: `Bearer ${token}` } })
+        ]);
+        setMatches(matchRes.data.matches || []);
+        setAllUsers(allUsersRes.data.users || []);
       } catch (err) {
-        setError('Failed to load your matches. Please try again later.');
+        setError('Failed to load users. Please try again later.');
       } finally {
         setIsLoading(false);
       }
     };
-    fetchMatches();
+    fetchData();
   }, []);
 
-  // Helper function to generate a placeholder avatar based on the user's name
   const getInitials = (name) => {
     return name ? name.charAt(0).toUpperCase() : '?';
   };
 
+  const listToShow = activeTab === 'matches' ? matches : allUsers.map(u => ({ ...u, userId: u._id }));
+
+  const filteredUsers = listToShow.filter(user => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    const nameMatch = user.name?.toLowerCase().includes(query);
+    const teachMatch = user.teachToOther?.some(s => s.toLowerCase().includes(query));
+    const learnMatch = user.learnFromOther?.some(s => s.toLowerCase().includes(query));
+    return nameMatch || teachMatch || learnMatch;
+  });
+
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-[calc(100vh-4rem)] bg-surface-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
         
-        {/* Header */}
-        <div className="mb-10 text-center sm:text-left flex flex-col sm:flex-row justify-between items-end">
+        <div className="mb-10 animate-fade-in flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
           <div>
-            <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">Your Matches</h2>
-            <p className="mt-2 text-sm text-gray-500">
-              People who have the skills you want, and want the skills you have.
+            <h2 className="text-3xl font-display font-extrabold text-slate-900 tracking-tight flex items-center">
+              <Users className="mr-3 text-brand-600" size={32} />
+              Community
+            </h2>
+            <p className="mt-2 text-slate-500 max-w-2xl">
+              Connect with people who have the skills you want to learn, or browse all platform users.
             </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
+            <div className="flex bg-slate-100 p-1 rounded-xl">
+              <button 
+                onClick={() => setActiveTab('matches')}
+                className={`flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg transition-all ${activeTab === 'matches' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                <Sparkles size={16} className="mr-2" />
+                Your Matches
+              </button>
+              <button 
+                onClick={() => setActiveTab('all')}
+                className={`flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg transition-all ${activeTab === 'all' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                <Globe size={16} className="mr-2" />
+                All Users
+              </button>
+            </div>
+
+            <div className="relative w-full sm:w-64">
+              <input
+                type="text"
+                placeholder="Search by name or skill..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm focus:border-brand-400 focus:ring-4 focus:ring-brand-50 shadow-sm transition-all outline-none"
+              />
+              <Search className="absolute left-3.5 top-3 text-slate-400" size={18} />
+            </div>
           </div>
         </div>
 
-        {/* Error State */}
         {error && (
-          <div className="bg-red-50 text-red-600 p-4 rounded-xl text-sm border border-red-100 flex items-center mb-8">
-            <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
+          <div className="bg-rose-50 text-rose-600 p-4 rounded-xl text-sm border border-rose-100 flex items-center mb-8 animate-fade-in shadow-sm">
+            <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
             {error}
           </div>
         )}
 
-        {/* Loading State */}
         {isLoading ? (
-          <div className="flex justify-center items-center h-64">
-            <svg className="animate-spin h-10 w-10 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
+          <div className="flex justify-center items-center h-64 bg-white rounded-3xl border border-slate-200 shadow-sm">
+            <Loader2 className="animate-spin h-10 w-10 text-brand-600" />
           </div>
         ) : (
-          /* Content State */
           <>
-            {matches.length === 0 && !error ? (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-12 text-center">
-                <svg className="mx-auto h-16 w-16 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                <h3 className="mt-4 text-lg font-medium text-gray-900">No matches yet</h3>
-                <p className="mt-1 text-gray-500">Update your profile to find more people to connect with.</p>
+            {listToShow.length === 0 && !error ? (
+              <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-16 text-center animate-fade-in">
+                <div className="w-20 h-20 bg-brand-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                  {activeTab === 'matches' ? <Sparkles className="h-10 w-10 text-brand-500" /> : <Globe className="h-10 w-10 text-brand-500" />}
+                </div>
+                <h3 className="text-2xl font-bold text-slate-900 mb-2">No {activeTab} yet</h3>
+                <p className="text-slate-500 max-w-md mx-auto mb-8">
+                  {activeTab === 'matches' 
+                    ? "Update your profile with more skills you know and want to learn to find the perfect learning partner."
+                    : "There are no other users on the platform right now."}
+                </p>
+                {activeTab === 'matches' && (
+                  <Link to="/skills" className="inline-flex items-center justify-center px-6 py-3 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-xl shadow-sm transition-colors group">
+                    Update Skills
+                    <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                  </Link>
+                )}
+              </div>
+            ) : filteredUsers.length === 0 ? (
+              <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-16 text-center animate-fade-in">
+                <h3 className="text-xl font-bold text-slate-900 mb-2">No results found</h3>
+                <p className="text-slate-500 max-w-md mx-auto">
+                  Try adjusting your search query to find the user you are looking for.
+                </p>
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-                {matches.map(match => (
-                  <div key={match.userId} className="bg-white rounded-2xl shadow-sm hover:shadow-lg transition-shadow duration-300 border border-gray-200 overflow-hidden flex flex-col">
+                {filteredUsers.map((user, i) => (
+                  <div 
+                    key={user.userId} 
+                    className="bg-white rounded-3xl shadow-sm hover:shadow-lg transition-all duration-300 border border-slate-200 overflow-hidden flex flex-col group animate-slide-up"
+                    style={{ animationDelay: `${i * 50}ms` }}
+                  >
                     
-                    {/* Card Header */}
-                    <div className="p-6 border-b border-gray-100 flex items-start justify-between">
-                      <div className="flex items-center space-x-4">
-                        <div className="h-12 w-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xl font-bold flex-shrink-0">
-                          {getInitials(match.name)}
-                        </div>
-                        <div>
-                          <h3 className="text-lg font-bold text-gray-900 truncate">{match.name}</h3>
-                          <p className="text-sm text-gray-500 truncate">{match.email}</p>
+                    <div className="p-6 border-b border-slate-100 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 -mr-8 -mt-8 w-24 h-24 bg-gradient-to-br from-brand-100 to-indigo-100 rounded-full opacity-50 group-hover:scale-150 transition-transform duration-500 ease-in-out"></div>
+                      
+                      <div className="flex items-start justify-between relative z-10">
+                        <div className="flex items-center space-x-4">
+                          <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-brand-500 to-indigo-600 flex items-center justify-center text-white text-xl font-bold shadow-md transform group-hover:-translate-y-1 transition-transform">
+                            {getInitials(user.name)}
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-bold text-slate-900 line-clamp-1">{user.name}</h3>
+                            <p className="text-sm text-slate-500 line-clamp-1">{user.email}</p>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          {match.matchScore} Match
-                        </span>
-                      </div>
+                      
+                      {user.matchScore > 0 && (
+                        <div className="mt-4 inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-50 text-green-700 border border-green-200">
+                          <Sparkles size={12} className="mr-1" />
+                          {user.matchScore} Match
+                        </div>
+                      )}
                     </div>
 
-                    {/* Card Body (Skills) */}
-                    <div className="p-6 flex-1 space-y-5">
-                      {/* They can teach */}
+                    <div className="p-6 flex-1 space-y-6">
                       <div>
-                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">They can teach you</h4>
+                        <h4 className="text-xs font-bold text-brand-600 uppercase tracking-wider mb-3">They can teach you</h4>
                         <div className="flex flex-wrap gap-2">
-                          {match.teachToOther && match.teachToOther.length > 0 ? (
-                            match.teachToOther.map((skill, idx) => (
-                              <span key={idx} className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                          {user.teachToOther && user.teachToOther.length > 0 ? (
+                            user.teachToOther.map((skill, idx) => (
+                              <span key={idx} className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-50 text-brand-700 border border-brand-100">
                                 {skill}
                               </span>
                             ))
                           ) : (
-                            <span className="text-sm text-gray-400">None specified</span>
+                            <span className="text-sm text-slate-400 italic">None specified</span>
                           )}
                         </div>
                       </div>
 
-                      {/* They want to learn */}
                       <div>
-                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">They want to learn</h4>
+                        <h4 className="text-xs font-bold text-purple-600 uppercase tracking-wider mb-3">They want to learn</h4>
                         <div className="flex flex-wrap gap-2">
-                          {match.learnFromOther && match.learnFromOther.length > 0 ? (
-                            match.learnFromOther.map((skill, idx) => (
-                              <span key={idx} className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-purple-50 text-purple-700 border border-purple-100">
+                          {user.learnFromOther && user.learnFromOther.length > 0 ? (
+                            user.learnFromOther.map((skill, idx) => (
+                              <span key={idx} className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-50 text-purple-700 border border-purple-100">
                                 {skill}
                               </span>
                             ))
                           ) : (
-                            <span className="text-sm text-gray-400">None specified</span>
+                            <span className="text-sm text-slate-400 italic">None specified</span>
                           )}
                         </div>
                       </div>
                     </div>
 
-                    {/* Card Footer */}
-                    <div className="p-4 bg-gray-50 border-t border-gray-100">
+                    <div className="p-4 bg-slate-50 border-t border-slate-100 mt-auto">
                       <Link 
-                        to={`/chat?peer=${match.userId}`} // Assuming you might want to pass peer ID via query param
-                        className="w-full flex justify-center items-center px-4 py-2 border border-transparent rounded-lg shadow-sm text-sm font-medium text-blue-700 bg-blue-100 hover:bg-blue-200 transition-colors"
+                        to={`/chat?peer=${user.userId}`}
+                        className="w-full flex justify-center items-center px-4 py-3 bg-white border border-slate-200 rounded-xl shadow-sm text-sm font-semibold text-slate-700 hover:text-brand-600 hover:border-brand-200 transition-all group-hover:bg-brand-50"
                       >
-                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                        </svg>
-                        Message {match.name.split(' ')[0]}
+                        <MessageCircle className="w-4 h-4 mr-2" />
+                        Message {user.name.split(' ')[0]}
                       </Link>
                     </div>
 
