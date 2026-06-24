@@ -14,11 +14,7 @@ const io = new Server(server, {
 });
 
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:3000',
-    "https://l2-96kieu6k1-atharvas-projects-3da064f2.vercel.app/"
-  ],
+  origin: ["*"],
   credentials: true
 }));
 app.use(express.json());
