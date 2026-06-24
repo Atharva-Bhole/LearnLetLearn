@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { SocketProvider } from './context/SocketContext';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import Register from './pages/Register';
@@ -14,18 +15,20 @@ import Navbar from './components/Navbar';
 function App() {
   return (
     <Router>
-      <Navbar />
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/profile" element={<Profile />} />
-        <Route path="/skills" element={<Skills />} />
-        <Route path="/match" element={<Match />} />
-        <Route path="/chat" element={<Chat />} />
-        <Route path="/video" element={<Video />} />
-        <Route path="/requests" element={<Requests />} />
-      </Routes>
+      <SocketProvider>
+        <Navbar />
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/skills" element={<Skills />} />
+          <Route path="/match" element={<Match />} />
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/video" element={<Video />} />
+          <Route path="/requests" element={<Requests />} />
+        </Routes>
+      </SocketProvider>
     </Router>
   );
 }

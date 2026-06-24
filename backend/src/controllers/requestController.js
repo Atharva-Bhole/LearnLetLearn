@@ -38,3 +38,15 @@ exports.respondRequest = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err });
   }
 };
+
+exports.getAllRequests = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const requests = await Request.find({
+      $or: [{ sender: userId }, { receiver: userId }]
+    });
+    res.json({ requests });
+  } catch (err) {
+    res.status(500).json({ message: 'Server error', error: err });
+  }
+};

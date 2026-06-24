@@ -10,18 +10,24 @@ const Match = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('matches'); // 'matches' | 'all'
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [userRequests, setUserRequests] = useState([]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setIsLoading(true);
         const token = localStorage.getItem('token');
-        const [matchRes, allUsersRes] = await Promise.all([
+        const [profileRes, matchRes, allUsersRes, requestsRes] = await Promise.all([
+          axios.get('http://localhost:5000/api/auth/profile', { headers: { Authorization: `Bearer ${token}` } }),
           axios.get('http://localhost:5000/api/match/', { withCredentials: true }),
-          axios.get('http://localhost:5000/api/user/search?q=', { headers: { Authorization: `Bearer ${token}` } })
+          axios.get('http://localhost:5000/api/user/search?q=', { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get('http://localhost:5000/api/request/all', { headers: { Authorization: `Bearer ${token}` } })
         ]);
+        setCurrentUserId(profileRes.data._id);
         setMatches(matchRes.data.matches || []);
         setAllUsers(allUsersRes.data.users || []);
+        setUserRequests(requestsRes.data.requests || []);
       } catch (err) {
         setError('Failed to load users. Please try again later.');
       } finally {
@@ -33,6 +39,31 @@ const Match = () => {
 
   const getInitials = (name) => {
     return name ? name.charAt(0).toUpperCase() : '?';
+  };
+
+  const getRelationshipStatus = (peerId) => {
+    if (!currentUserId) return { status: 'none', role: 'none' };
+    const sent = userRequests.find(r => r.receiver === peerId && r.sender === currentUserId);
+    const received = userRequests.find(r => r.sender === peerId && r.receiver === currentUserId);
+    if (sent) return { status: sent.status, role: 'sender' };
+    if (received) return { status: received.status, role: 'receiver' };
+    return { status: 'none', role: 'none' };
+  };
+
+  const handleSendRequest = async (peerId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post('http://localhost:5000/api/request/send', { receiverId: peerId }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      // Refresh requests
+      const res = await axios.get('http://localhost:5000/api/request/all', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUserRequests(res.data.requests || []);
+    } catch (err) {
+      alert('Failed to send request');
+    }
   };
 
   const listToShow = activeTab === 'matches' ? matches : allUsers.map(u => ({ ...u, userId: u._id }));
@@ -195,13 +226,36 @@ const Match = () => {
                     </div>
 
                     <div className="p-4 bg-slate-50 border-t border-slate-100 mt-auto">
-                      <Link 
-                        to={`/chat?peer=${user.userId}`}
-                        className="w-full flex justify-center items-center px-4 py-3 bg-white border border-slate-200 rounded-xl shadow-sm text-sm font-semibold text-slate-700 hover:text-brand-600 hover:border-brand-200 transition-all group-hover:bg-brand-50"
-                      >
-                        <MessageCircle className="w-4 h-4 mr-2" />
-                        Message {user.name.split(' ')[0]}
-                      </Link>
+                      {getRelationshipStatus(user.userId).status === 'accepted' ? (
+                        <Link 
+                          to={`/chat?peer=${user.userId}`}
+                          className="w-full flex justify-center items-center px-4 py-3 bg-white border border-slate-200 rounded-xl shadow-sm text-sm font-semibold text-slate-700 hover:text-brand-600 hover:border-brand-200 transition-all group-hover:bg-brand-50"
+                        >
+                          <MessageCircle className="w-4 h-4 mr-2" />
+                          Message {user.name.split(' ')[0]}
+                        </Link>
+                      ) : getRelationshipStatus(user.userId).status === 'pending' && getRelationshipStatus(user.userId).role === 'sender' ? (
+                        <button 
+                          disabled
+                          className="w-full flex justify-center items-center px-4 py-3 bg-slate-100 border border-slate-200 rounded-xl shadow-sm text-sm font-semibold text-slate-500 cursor-not-allowed"
+                        >
+                          Request Sent
+                        </button>
+                      ) : getRelationshipStatus(user.userId).status === 'pending' && getRelationshipStatus(user.userId).role === 'receiver' ? (
+                        <Link 
+                          to="/requests"
+                          className="w-full flex justify-center items-center px-4 py-3 bg-brand-50 border border-brand-200 rounded-xl shadow-sm text-sm font-semibold text-brand-700 hover:bg-brand-100 transition-all"
+                        >
+                          Review Request
+                        </Link>
+                      ) : (
+                        <button 
+                          onClick={() => handleSendRequest(user.userId)}
+                          className="w-full flex justify-center items-center px-4 py-3 bg-blue-600 border border-transparent rounded-xl shadow-sm text-sm font-semibold text-white hover:bg-blue-700 transition-all"
+                        >
+                          Connect
+                        </button>
+                      )}
                     </div>
 
                   </div>

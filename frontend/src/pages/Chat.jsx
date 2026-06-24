@@ -2,9 +2,9 @@ import React, { useEffect, useState, useRef } from 'react';
 import { io } from 'socket.io-client';
 import axios from 'axios';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Send, User as UserIcon, Search, Loader2, MessageSquare, Video, Paperclip, FileText, Users, Globe } from 'lucide-react';
+import { Send, User as UserIcon, Search, Loader2, MessageSquare, Video, Paperclip, FileText, Users, Globe, Clock } from 'lucide-react';
 
-const socket = io('http://localhost:5000', { autoConnect: false });
+import { useSocket } from '../context/SocketContext';
 
 const Chat = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -15,7 +15,10 @@ const Chat = () => {
   const [contacts, setContacts] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState('matches');
+  const [activeTab, setActiveTab] = useState('recent');
+  const [recentChats, setRecentChats] = useState([]);
+  const [userRequests, setUserRequests] = useState([]);
+  const { socket } = useSocket();
   
   const [messages, setMessages] = useState([]);
   const [message, setMessage] = useState('');
@@ -47,18 +50,18 @@ const Chat = () => {
         const currentUserId = profileRes.data._id;
         setUserId(currentUserId);
         
-        // Connect Socket
-        socket.connect();
-        socket.emit('join', { userId: currentUserId });
-
-        const [matchRes, allUsersRes] = await Promise.all([
+        const [matchRes, allUsersRes, requestsRes, recentRes] = await Promise.all([
           axios.get('http://localhost:5000/api/match/', { withCredentials: true }),
-          axios.get('http://localhost:5000/api/user/search?q=', { headers: { Authorization: `Bearer ${token}` } })
+          axios.get('http://localhost:5000/api/user/search?q=', { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get('http://localhost:5000/api/request/all', { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get('http://localhost:5000/api/chat/recent', { headers: { Authorization: `Bearer ${token}` } })
         ]);
         
         const matches = matchRes.data.matches || [];
         setContacts(matches);
         setAllUsers(allUsersRes.data.users || []);
+        setUserRequests(requestsRes.data.requests || []);
+        setRecentChats(recentRes.data.users || []);
 
         if (initialPeerId) {
           let peer = matches.find(m => m.userId === initialPeerId);
@@ -83,17 +86,22 @@ const Chat = () => {
       }
     };
     initChat();
-    return () => socket.disconnect();
   }, []);
 
   useEffect(() => {
-    socket.on('receive_message', msg => {
-      setMessages(prev => [...prev, msg]);
-    });
-    return () => {
-      socket.off('receive_message');
+    if (!socket) return;
+    const handleReceive = (msg) => {
+      // Only append to this chat if the message is from or to the active peer
+      // and we are currently viewing their chat
+      if (activePeer && (msg.senderId === activePeer.userId || msg.receiverId === activePeer.userId)) {
+        setMessages(prev => [...prev, msg]);
+      }
     };
-  }, []);
+    socket.on('receive_message', handleReceive);
+    return () => {
+      socket.off('receive_message', handleReceive);
+    };
+  }, [socket, activePeer]);
 
   const fetchHistory = async (currentUserId, peerId) => {
     if (!peerId || !currentUserId) return;
@@ -173,9 +181,33 @@ const Chat = () => {
   const startVideoCall = () => {
     if (!activePeer) return;
     const inviteMessage = `🎥 I'm inviting you to a video call! Click the Video icon at the top to join me, or go to: http://localhost:5173/video?peer=${userId}`;
-    socket.emit('send_message', { senderId: userId, receiverId: activePeer.userId, message: inviteMessage });
+    socket?.emit('send_message', { senderId: userId, receiverId: activePeer.userId, message: inviteMessage });
     setMessages(prev => [...prev, { senderId: userId, message: inviteMessage, timestamp: new Date() }]);
     navigate(`/video?peer=${activePeer.userId}`);
+  };
+
+  const getRelationshipStatus = (peerId) => {
+    const sent = userRequests.find(r => r.receiver === peerId && r.sender === userId);
+    const received = userRequests.find(r => r.sender === peerId && r.receiver === userId);
+    if (sent) return { status: sent.status, role: 'sender' };
+    if (received) return { status: received.status, role: 'receiver' };
+    return { status: 'none', role: 'none' };
+  };
+
+  const handleSendRequest = async (peerId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await axios.post('http://localhost:5000/api/request/send', { receiverId: peerId }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      // Refresh requests
+      const res = await axios.get('http://localhost:5000/api/request/all', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUserRequests(res.data.requests || []);
+    } catch (err) {
+      alert('Failed to send request');
+    }
   };
 
   const getInitials = (name) => name ? name.charAt(0).toUpperCase() : '?';
@@ -190,7 +222,7 @@ const Chat = () => {
       );
     }
     
-    let listToShow = activeTab === 'matches' ? contacts : allUsers;
+    let listToShow = activeTab === 'matches' ? contacts : activeTab === 'recent' ? recentChats : allUsers;
     
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -223,7 +255,7 @@ const Chat = () => {
           <div className="ml-3 overflow-hidden">
             <h4 className="text-sm font-semibold text-slate-900 truncate">{user.name}</h4>
             <p className="text-xs text-slate-500 truncate mt-0.5">
-              {activeTab === 'matches' ? 'Match connection' : 'Platform user'}
+              {activeTab === 'matches' ? 'Match connection' : activeTab === 'recent' ? 'Recent chat' : 'Platform user'}
             </p>
           </div>
         </button>
@@ -244,18 +276,25 @@ const Chat = () => {
             
             <div className="flex bg-slate-100 p-1 rounded-xl mb-4">
               <button 
+                onClick={() => setActiveTab('recent')}
+                className={`flex-1 flex items-center justify-center py-1.5 text-sm font-medium rounded-lg transition-all ${activeTab === 'recent' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                title="Recent Chats"
+              >
+                <Clock size={16} />
+              </button>
+              <button 
                 onClick={() => setActiveTab('matches')}
                 className={`flex-1 flex items-center justify-center py-1.5 text-sm font-medium rounded-lg transition-all ${activeTab === 'matches' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                title="Matches"
               >
-                <Users size={16} className="mr-1.5" />
-                Matches
+                <Users size={16} />
               </button>
               <button 
                 onClick={() => setActiveTab('all')}
                 className={`flex-1 flex items-center justify-center py-1.5 text-sm font-medium rounded-lg transition-all ${activeTab === 'all' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                title="All Users"
               >
-                <Globe size={16} className="mr-1.5" />
-                All Users
+                <Globe size={16} />
               </button>
             </div>
 
@@ -289,13 +328,15 @@ const Chat = () => {
                     {activePeer.email && <p className="text-xs text-slate-500">{activePeer.email}</p>}
                   </div>
                 </div>
-                <button 
-                  onClick={startVideoCall}
-                  className="bg-blue-50 hover:bg-blue-100 text-blue-600 p-2.5 rounded-full transition-colors flex items-center justify-center shadow-sm border border-blue-100"
-                  title="Start Video Call"
-                >
-                  <Video size={20} />
-                </button>
+                {getRelationshipStatus(activePeer.userId).status === 'accepted' && (
+                  <button 
+                    onClick={startVideoCall}
+                    className="bg-blue-50 hover:bg-blue-100 text-blue-600 p-2.5 rounded-full transition-colors flex items-center justify-center shadow-sm border border-blue-100"
+                    title="Start Video Call"
+                  >
+                    <Video size={20} />
+                  </button>
+                )}
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 space-y-4">
@@ -344,10 +385,11 @@ const Chat = () => {
               </div>
 
               <div className="bg-white p-4 sm:p-6 border-t border-slate-200">
-                <form 
-                  className="flex items-end gap-3 max-w-4xl mx-auto relative" 
-                  onSubmit={sendMessage}
-                >
+                {getRelationshipStatus(activePeer.userId).status === 'accepted' ? (
+                  <form 
+                    className="flex items-end gap-3 max-w-4xl mx-auto relative" 
+                    onSubmit={sendMessage}
+                  >
                   <input
                     type="file"
                     ref={fileInputRef}
@@ -378,6 +420,31 @@ const Chat = () => {
                     <Send className="w-5 h-5" />
                   </button>
                 </form>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-4 px-6 bg-slate-50 rounded-xl border border-slate-100 text-center">
+                    <p className="text-slate-600 mb-4 text-sm">
+                      You must be connected to send messages and make video calls.
+                    </p>
+                    {getRelationshipStatus(activePeer.userId).status === 'none' && (
+                      <button 
+                        onClick={() => handleSendRequest(activePeer.userId)}
+                        className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm transition-all"
+                      >
+                        Send Connection Request
+                      </button>
+                    )}
+                    {getRelationshipStatus(activePeer.userId).status === 'pending' && getRelationshipStatus(activePeer.userId).role === 'sender' && (
+                      <button disabled className="px-6 py-2.5 bg-slate-200 text-slate-500 font-semibold rounded-lg">
+                        Request Sent
+                      </button>
+                    )}
+                    {getRelationshipStatus(activePeer.userId).status === 'pending' && getRelationshipStatus(activePeer.userId).role === 'receiver' && (
+                      <button onClick={() => navigate('/requests')} className="px-6 py-2.5 bg-brand-100 text-brand-700 hover:bg-brand-200 font-semibold rounded-lg transition-all">
+                        Review Request
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             </>
           ) : (
