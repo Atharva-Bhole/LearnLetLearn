@@ -35,10 +35,10 @@ module.exports = (io) => {
       socket.to(roomId).emit('ice_candidate', { candidate, senderId });
     });
 
-    // Save session to DB (optional)
-    socket.on('save_video_session', async ({ userA, userB }) => {
+    // Save session to DB asynchronously in the background
+    socket.on('save_video_session', ({ userA, userB }) => {
       const session = new VideoSession({ userA, userB });
-      await session.save();
+      session.save().catch(err => console.error('Failed to save video session:', err));
     });
 
     socket.on('leave_video_room', ({ roomId, userId }) => {
